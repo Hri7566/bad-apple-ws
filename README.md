@@ -1,3 +1,11 @@
+# bad-apple-ws
+
+Bad Apple hosted on a WebSocket server
+
+This is a fork of [bad-apple](https://github.com/iahuang/bad-apple) that runs on a WebSocket server.
+
+The original readme is below.
+
 # bad-apple.js
 
 A Javascript implementation of the famous music video for the song featured in *Touhou*

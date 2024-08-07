@@ -5,9 +5,9 @@
 */
 
 const CONFIG = {
-    video_height: "detect", // playback height (in characters). if set to "detect", then use the height of the terminal that this program is currently running in
-    fps: 24,
-    output_file: "ba.js",
+  video_height: "detect", // playback height (in characters). if set to "detect", then use the height of the terminal that this program is currently running in
+  fps: 60,
+  output_file: "ba.js",
 };
 
 const os = require("os");
@@ -23,36 +23,36 @@ const VIDEO = "res/video.mp4"; // input
 // preliminary checks + utility functions
 
 if (!["Linux", "Darwin"].includes(os.type())) {
-    throw new Error("file must be run in a unix-based shell");
+  throw new Error("file must be run in a unix-based shell");
 }
 
 function _execSync(cmd) {
-    return child_process.execSync(cmd, { encoding: "utf8" }).trim();
+  return child_process.execSync(cmd, { encoding: "utf8" }).trim();
 }
 
 function _execSyncSilent(cmd) {
-    child_process.execSync(cmd, { stdio: "ignore" });
+  child_process.execSync(cmd, { stdio: "ignore" });
 }
 
 function getTermInfo() {
-    return {
-        cols: Number.parseInt(_execSync("tput cols")),
-        rows: Number.parseInt(_execSync("tput lines")),
-    };
+  return {
+    cols: 10, //Number.parseInt(_execSync("tput cols")),
+    rows: 6, //Number.parseInt(_execSync("tput lines")),
+  };
 }
 
 function mkdirIfNeeded(path) {
-    if (!fs.existsSync(path)) {
-        fs.mkdirSync(path);
-    }
+  if (!fs.existsSync(path)) {
+    fs.mkdirSync(path);
+  }
 }
 
 function hasFfmpeg() {
-    return Boolean(_execSync("which ffmpeg"));
+  return Boolean(_execSync("which ffmpeg"));
 }
 
 if (!hasFfmpeg()) {
-    throw new Error("ffmpeg must be installed");
+  throw new Error("ffmpeg must be installed");
 }
 
 mkdirIfNeeded("tmp");
@@ -60,32 +60,32 @@ mkdirIfNeeded("tmp");
 // calculate video dimensions
 
 function getVideoDims(path) {
-    let [w, h] = _execSync(
-        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 ${path}`
-    ).split("x");
-    return {
-        width: Number.parseInt(w),
-        height: Number.parseInt(h),
-    };
+  let [w, h] = _execSync(
+    `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 ${path}`,
+  ).split("x");
+  return {
+    width: Number.parseInt(w),
+    height: Number.parseInt(h),
+  };
 }
 
 let termDims = getTermInfo();
 
 if (termDims.cols < termDims.rows) {
-    // just to make things easier for me
-    throw new Error("terminal cannot be taller than it is wide");
+  // just to make things easier for me
+  throw new Error("terminal cannot be taller than it is wide");
 }
 
 if (CONFIG.video_height !== "detect") {
-    termDims = CONFIG.video_height;
+  termDims = CONFIG.video_height;
 }
 
 let idims = getVideoDims(VIDEO);
 let scale = termDims.rows / idims.height;
 
 let newDims = {
-    width: Math.round(idims.width * scale),
-    height: termDims.rows,
+  width: Math.round(idims.width * scale),
+  height: termDims.rows,
 };
 
 // ffmpeg requires that width and height be divisble by 2
@@ -95,11 +95,11 @@ newDims.height -= newDims.height % 2;
 const SCALED_VIDEO = "tmp/_video.mp4";
 
 let a = _execSync(
-    `ffmpeg -y -i ${VIDEO} -vf scale=${newDims.width}:${newDims.height} ${SCALED_VIDEO}`
+  `ffmpeg -y -i ${VIDEO} -vf scale=${newDims.width}:${newDims.height} ${SCALED_VIDEO}`,
 );
 
 function extractFrames(path, fps) {
-    _execSync(`ffmpeg -i ${path} -vf fps=${fps} tmp/out%d.png`);
+  _execSync(`ffmpeg -i ${path} -vf fps=${fps} tmp/out%d.png`);
 }
 
 extractFrames(SCALED_VIDEO, CONFIG.fps);
@@ -110,56 +110,54 @@ console.log("done.");
 let frameFiles = glob.sync("tmp/out*");
 // sort frame files by frame number
 frameFiles.sort((a, b) => {
-    let frameNo = /\d+/g;
-    let frameA = Number.parseInt(a.match(frameNo));
-    let frameB = Number.parseInt(b.match(frameNo));
+  let frameNo = /\d+/g;
+  let frameA = Number.parseInt(a.match(frameNo));
+  let frameB = Number.parseInt(b.match(frameNo));
 
-    return frameA - frameB;
+  return frameA - frameB;
 });
 console.log(frameFiles);
 let frames = [];
 let rawFrameData = [];
 
 for (let frameFile of frameFiles) {
-    console.log("processing frame", frameFile);
-    let imgData = PNG.sync.read(fs.readFileSync(frameFile));
-    let frame = "";
-    let pixelDataArray = new Uint8Array(imgData.width * imgData.height);
+  console.log("processing frame", frameFile);
+  let imgData = PNG.sync.read(fs.readFileSync(frameFile));
+  let frame = "";
+  let pixelDataArray = new Uint8Array(imgData.width * imgData.height);
 
-    for (let y = 0; y < imgData.height; y++) {
-        let row = "";
-        for (let x = 0; x < imgData.width; x++) {
-            let idx = (imgData.width * y + x) << 2;
-            let v = imgData.data[idx];
-            let fdi = imgData.width * y + x;
+  for (let y = 0; y < imgData.height; y++) {
+    let row = "";
+    for (let x = 0; x < imgData.width; x++) {
+      let idx = (imgData.width * y + x) << 2;
+      let v = imgData.data[idx];
+      let fdi = imgData.width * y + x;
 
-            if (v < 64) {
-                pixelDataArray[fdi] = 65; // A
-            } else if (v < 128) {
-                pixelDataArray[fdi] = 66; // B
-            } else if (v < 192) {
-                pixelDataArray[fdi] = 67; // C
-            } else {
-                pixelDataArray[fdi] = 68; // D
-            }
-
-
-        }
-        frame += row + "\n";
+      if (v < 64) {
+        pixelDataArray[fdi] = 65; // A
+      } else if (v < 128) {
+        pixelDataArray[fdi] = 66; // B
+      } else if (v < 192) {
+        pixelDataArray[fdi] = 67; // C
+      } else {
+        pixelDataArray[fdi] = 68; // D
+      }
     }
-    frames.push(frame);
-    rawFrameData.push(new TextDecoder("utf8").decode(pixelDataArray));
+    frame += row + "\n";
+  }
+  frames.push(frame);
+  rawFrameData.push(new TextDecoder("utf8").decode(pixelDataArray));
 }
 
 fs.writeFileSync(
-    CONFIG.output_file,
-    `
+  CONFIG.output_file,
+  `
 const videoData=${JSON.stringify({
-        width: newDims.width,
-        height: newDims.height,
-        data: rawFrameData,
-        fps: CONFIG.fps,
-    })};
+    width: newDims.width,
+    height: newDims.height,
+    data: rawFrameData,
+    fps: CONFIG.fps,
+  })};
 
 console.log("Preparing...");
 
@@ -188,15 +186,18 @@ for (let frameData of videoData.data) {
 
 let frameNo = 0;
 
+const WSS = require("./server.js");
+
 function render() {
     if (frameNo === videoData.data.length) {
         process.exit();
     }
-    console.clear();
-    console.log(frames[frameNo]);
+    //console.clear();
+    //console.log(frames[frameNo]);
+    WSS.sendChat(frames[frameNo]);
     frameNo++;
 }
 setInterval(render, 1000/videoData.fps);
 
-`
+`,
 );
